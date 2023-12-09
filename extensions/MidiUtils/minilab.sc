@@ -4,6 +4,7 @@ MiniLab {
 	var window = nil;
 	var midifuncs;
 	var guifuncs;
+	var values;
 
 	*new {
 		var self = super.new;
@@ -14,6 +15,8 @@ MiniLab {
 	init {
 		midifuncs = Array.fill(16, { nil });
 		guifuncs = Array.fill(16, { nil });
+		values = Array.fill(16, { 0 });
+		this.gui;
 	}
 
 	initMidi {
@@ -27,9 +30,11 @@ MiniLab {
 		midifuncs.do{ |kfunc| kfunc.free };
 	}
 
-	knob { |num, synth, ctlSym, range|
+	synth { |num, syn, ctlSym, range|
 		var cc, midifunc;
 		var ki = num - 1;
+		var name = syn.defName.asString + "-" + ctlSym.asString;
+
 		// if an existing knob midi func exists free it
 		if(midifuncs[ki] != nil) {
 			midifuncs[ki].free;
@@ -38,26 +43,74 @@ MiniLab {
 		cc = ccKnobs[ki];
 		midifunc = MIDIFunc.cc({|v|
 			var newv = v.linlin(0, 127, range[0], range[1]);
-			synth.set(ctlSym, newv);
-			if(guifuncs[ki] != nil) {
-				{
-					guifuncs[ki].value(v / 127, newv * 1.0);
-				}.defer;
-			}
+			syn.set(ctlSym, newv);
+			{
+				guifuncs[ki].value(v / 127, newv * 1.0);
+			}.defer;
 		}, cc);
 		midifuncs[ki] = midifunc;
 
-		if(guifuncs[ki] != nil) {
+		// set initial values
+		syn.get(ctlSym, { arg value;
+			var knob_v = value.linlin(range[0], range[1], 0, 1);
 			{
-				var defname = synth.defName.asString;
-				var ctlname = ctlSym.asString;
-				var name = defname + "-" + ctlname;
-				guifuncs[ki].value(0, 0.0, name);
+				guifuncs[ki].value(knob_v, value, name);
 			}.defer;
-		}
+		});
 
 		^midifunc;
 	}
+
+	func { |nums, ranges, cb, name|
+		if(nums.isArray.not) {
+			nums = [nums];
+		};
+
+		if(ranges[0].isArray.not) {
+			ranges = [ranges];
+		};
+
+		nums.do { arg num, ix;
+			var ki = num - 1;
+			var cc = ccKnobs[ki];
+
+			// if an existing knob midi func exists free it
+			if(midifuncs[ki] != nil) {
+				midifuncs[ki].free;
+			};
+
+			midifuncs[ki] = MIDIFunc.cc({|v|
+				var newv, vals;
+				values[ki] = v;
+
+				// iterate over existing knob values requested
+				// and map into range
+				vals = Array.new(nums.size);
+				nums.do { arg num, i;
+					var range;
+					if (i < ranges.size) {
+						range = ranges[i];
+					} {
+						range = ranges[ranges.size - 1];
+					};
+					vals.add(values[num-1].linlin(0, 127, range[0], range[1]));
+				};
+				newv = vals[ix];
+				cb.value(*vals);
+				{
+					guifuncs[ki].value(v / 127, newv * 1.0);
+				}.defer;
+			}, cc);
+
+			if(name.isNil) {
+				name = "---";
+			};
+			{
+				guifuncs[ki].value(0, 0.0, name);
+			}.defer;
+		}
+	}
+
 
 	gui {
 		var numknob = {arg num;
@@ -78,7 +131,7 @@ MiniLab {
 				knob.value_(knobval);
 				valText.string_(textval.asStringPrec(5));
 				if(nameval.isNil.not) {
-					nameText.string_(nameval);
+					nameText.string_(format("%\n%", num, nameval));
 				}
 			};
 
@@ -93,11 +146,10 @@ MiniLab {
 		};
 
 		8.do { arg item;
-			row2.add(numknob.value(item + 8));
+			row2.add(numknob.value(item + 9));
 		};
 
-
-		window = Window(bounds:Rect(200,200,200,200)).layout_(
+		window = Window(name: "SC-MiniLab", bounds: Rect(200,200,600,800)).layout_(
 			VLayout(row1, row2)
 		).front;
 	}
@@ -111,3 +163,4 @@ MiniLab {
 	}
 
 }
+

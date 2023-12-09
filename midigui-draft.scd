@@ -30,33 +30,12 @@ win.front;
 
 (
 
-var numknob = {arg num;
-	var layer, knob, text;
-	knob = Knob.new().value_(0.5);
-	knob.action_({
-		knob.value.postln;
-	});
-	text = StaticText();
-	text.string = num.asString;
-	text.align = \center;
-	text.font = Font("Monaco", 25);
-	VLayout(knob, [text, align:\center]);
-};
+var window, size = 32; // try different sizes - from 15 to 200 or more!
+window = Window.new("Knob", Rect(640,630,270,70)).front;
+k = Knob.new(window, Rect(20, 10, size, size));
+k.action_({|v,x,y,m| postf("action func called: %\n", v.value); });
 
-var row1 = HLayout();
-var row2 = HLayout();
-
-8.do { arg item;
-	row1.add(numknob.value(item + 1));
-};
-
-8.do { arg item;
-	row2.add(numknob.value(item + 8));
-};
-
-
-w = Window(bounds:Rect(200,200,200,200)).layout_(
-	VLayout(row1, row2)
-).front;
 
 )
+
+k.value_(0.8);

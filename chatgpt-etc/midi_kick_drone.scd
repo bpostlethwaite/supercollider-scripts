@@ -1,6 +1,3 @@
-MIDIClient.init;
-MIDIIn.connectAll;
-MIDIClient.disposeClient;
 (
 SynthDef(\kick, {
     arg freq=50, dur=1.0, amp=0.8, pitchDecay=0.3, filterFreq=600;
@@ -27,32 +24,6 @@ SynthDef(\kick, {
 }).add;
 )
 
-// Play the kick drum
-Synth(\kick);
-
-
-(
-SynthDef(\simpleSynth, {
-    arg freq=440, amp=0.5;
-    var env, sig;
-
-    // Simple envelope and sine oscillator
-    env = EnvGen.kr(Env.perc(0.01, 0.5), gate:1, doneAction:2);
-	sig = SinOsc.ar([freq, freq + 2]) * env;
-
-    Out.ar(0, sig * amp);
-}).add;
-)
-
-// MIDI listener
-(
-MIDIdef.noteOn(\myMIDIListener, { |vel, note, chan|
-    // Convert MIDI note number to frequency
-    var frequency = note.midicps;
-    Synth(\simpleSynth, [freq: frequency, amp: vel/127]);
-});
-)
-
 // Define a drone synthesizer
 (
 SynthDef(\droneSynth, {
@@ -75,26 +46,37 @@ SynthDef(\droneSynth, {
 }).add;
 )
 
-// Start the drone
-d = Synth(\droneSynth);
-l = MiniLab.new;
-l.initMidi;
-
-l.knob(3, d, \freq2, [200, 240]);
-
-// After enjoying the drone, release it
-d.free;
-l.freeAll;
-l.destroy;
 (
-m =  #[112, 74, 71, 76, 77, 93, 73, 75,
-	   114, 18, 19, 16, 17, 91, 79, 72];
-c = MIDIFunc.cc({arg ccval, num, chan, src;
-			var val = ccval / 127.0;
-			val.postln;
-}, m[2-1]);
+SynthDef(\richDrone, {
+    var freq1, sig, env, mod, filterMod;
+
+    freq1 = 110; // A1
+
+    // Slow modulation for some movement in the sound
+    mod = SinOsc.kr(0.1).range(0.95, 1.05);
+
+    // Main sound source
+    sig = Saw.ar(freq1 * mod);
+
+    // Filters with slow modulation
+    filterMod = SinOsc.kr(0.2).range(300, 1000);
+    sig = RLPF.ar(sig, filterMod, 0.5);
+
+    // Use Greyhole for a dense diffusing delay effect
+    sig = Greyhole.ar(sig, delayTime: SinOsc.kr(0.2).range(1.5, 2.5), feedback: 0.9, modDepth: 0.1, modFreq: 2.0);
+
+    // Pitch shifting
+    sig = PitchShift.ar(sig, pitchRatio: SinOsc.kr(0.05).range(0.95, 1.05));
+
+    // Delay
+	sig = DelayC.ar(sig, maxdelaytime: 5, delaytime: 0.5);
+
+    // Harmonic Layers
+    sig = sig + SinOsc.ar(freq1 * 1.5 * mod);
+
+    // Reverb
+    sig = FreeVerb.ar(sig, mix: 0.5, room: 0.8);
+
+    Out.ar(0, sig!2); // Stereo output
+}).add;
 )
-
-// Arturia CC Knob Numbers
-
-c.free;
